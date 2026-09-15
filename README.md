@@ -1,238 +1,156 @@
-# БИРЖА — личный крипто-терминал
+# RUBEX — персональная криптобиржа (Next.js + PostgreSQL)
 
-Персональное веб-приложение в стиле криптобиржи: портфель, рынки, рыночные и лимитные ордера, история операций, пополнение/вывод и избранные монеты.
+Личный спот-терминал в рублях: живые котировки, лимитные и маркет-ордера, кошелёк с балансом
+**550 000 ₽**, депозиты и выводы, история сделок, настройки профиля.
 
-Приложение рассчитано на личное использование и запускается как сайт. Его можно добавить на экран iPhone или установить как приложение в Chrome/Edge на Windows.
-
-## Демо-доступ
-
-После первого запуска автоматически создаётся демо-аккаунт:
-
-- логин: `me`
-- пароль: `birzha`
-- стартовый баланс: `550000 ₽`
-
-При первом обращении к приложению автоматически заполняются монеты, демо-портфель, ордера, история и watchlist.
+Демо-доступ: `owner@rubex.trade` / `rubex2026`
 
 ---
 
-## Самый простой постоянный запуск: Neon + Vercel
+## 1. Что нужно
 
-### 1. Создать PostgreSQL в Neon
-
-1. Откройте [neon.tech](https://neon.tech) и создайте аккаунт.
-2. Создайте новый проект PostgreSQL.
-3. В разделе **Connect** скопируйте строку подключения. Она выглядит примерно так:
-
-```text
-postgresql://user:password@ep-example.eu-central-1.aws.neon.tech/neondb?sslmode=require
-```
-
-Не публикуйте эту строку в GitHub или сообщениях — это пароль к базе данных.
-
-### 2. Загрузить код на GitHub
-
-В папке проекта выполните:
-
-```bash
-git init
-git add .
-git commit -m "Initial personal exchange"
-git branch -M main
-git remote add origin https://github.com/YOUR-LOGIN/YOUR-REPOSITORY.git
-git push -u origin main
-```
-
-Если Git ещё не установлен на Windows, скачайте его с [git-scm.com](https://git-scm.com/download/win).
-
-### 3. Создать проект в Vercel
-
-1. Откройте [vercel.com](https://vercel.com) и войдите через GitHub.
-2. Нажмите **Add New → Project**.
-3. Выберите репозиторий.
-4. В разделе **Environment Variables** добавьте:
-
-```text
-DATABASE_URL=ваша_строка_подключения_Neon
-SESSION_SECRET=длинная_случайная_строка
-```
-
-Для `SESSION_SECRET` можно сгенерировать значение локально:
-
-```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-```
-
-5. Нажмите **Deploy**.
-
-Vercel выдаст постоянный адрес вида:
-
-```text
-https://название-проекта.vercel.app
-```
-
-### Если Vercel пишет «Не удалось найти каталог pages или app»
-
-Эта ошибка почти всегда означает, что Vercel собирает не корень проекта.
-
-В Vercel откройте:
-
-```text
-Project → Settings → General → Root Directory
-```
-
-Укажите корневую папку проекта — именно ту, внутри которой одновременно находятся:
-
-```text
-package.json
-src
-public
-next.config.ts
-```
-
-Обычно значение должно быть `.` или оставьте поле пустым. Не выбирайте `src` и не выбирайте папку уровнем выше, содержащую весь проект.
-
-Если проект загружен архивом, проверьте структуру GitHub. Неправильно:
-
-```text
-repository/project-folder/package.json
-```
-
-Правильно:
-
-```text
-repository/package.json
-repository/src/app/page.tsx
-```
-
-После исправления нажмите в Vercel:
-
-```text
-Deployments → Redeploy → Redeploy
-```
-
-В репозитории уже добавлен `vercel.json`, который явно указывает Vercel использовать Next.js и команду `npm run build`.
-
-## 4. Один раз применить схему базы
-
-Перед первым входом примените таблицы к базе Neon с компьютера.
-
-**PowerShell в Windows:**
-
-```powershell
-$env:DATABASE_URL="postgresql://user:password@host/database?sslmode=require"
-npx drizzle-kit push
-```
-
-**macOS/Linux:**
-
-```bash
-DATABASE_URL="postgresql://user:password@host/database?sslmode=require" npx drizzle-kit push
-```
-
-После этого откройте адрес Vercel. При первом запросе приложение само создаст демо-монеты и аккаунт.
-
-> Если вы меняете схему базы в будущем, снова выполните `npx drizzle-kit push` с тем же `DATABASE_URL`.
+| Компонент | Версия | Зачем |
+|---|---|---|
+| **Docker Desktop** (самый простой вариант) | последняя | запускает всё одной командой |
+| Node.js (для запуска без Docker) | 20 LTS или новее | запуск приложения |
+| PostgreSQL (для запуска без Docker) | 14+ (рекомендуется 16) | хранение данных |
+| Браузер | Safari 16+, Chrome, Edge | интерфейс, PWA |
 
 ---
 
-## Локальный запуск на Windows
+## 2. Docker — самый простой способ (одна команда)
 
-### Требования
-
-- Node.js 20.9 или новее: [nodejs.org](https://nodejs.org)
-- PostgreSQL 14 или новее: [postgresql.org](https://www.postgresql.org/download/windows/)
-
-### Команды
-
-Откройте PowerShell в папке проекта:
+Установите Docker Desktop для Windows (нужны WSL2 и виртуализация в BIOS), затем в папке проекта:
 
 ```powershell
+docker compose up -d --build
+```
+
+Готово — PostgreSQL (порт 5432) и приложение (порт 3000) поднимутся сами, таблицы и демо-данные
+(баланс 550 000 ₽) создадутся автоматически.
+
+- Открыть: `http://localhost:3000` (с телефона в той же сети — `http://IP_ПК:3000`).
+- Логи: `docker compose logs -f app`.
+- Остановить (данные сохранятся): `docker compose down`.
+- Полный сброс вместе с базой: `docker compose down -v`.
+
+Пароли меняются в `docker-compose.yml`: `POSTGRES_PASSWORD`, `DATABASE_URL`, `AUTH_SECRET`.
+
+---
+
+> **Сборка падает с ошибкой «Не удалось найти каталог pages или app»?** Это значит, что в корне
+> репозитория нет папки `src`. Проверьте, что `package.json` и `src/` лежат в корне (не внутри вложенной
+> папки). Либо в Vercel → Settings → Git → **Root Directory** укажите вложенную папку. Чистый ZIP проекта
+> можно скачать на странице `/install` работающего приложения (файл `/rubex-project.zip`).
+
+---
+
+## 3. Windows — локальный запуск (без Docker)
+
+```powershell
+# 1. создать базу (один раз)
+& "C:\Program Files\PostgreSQL\16\bin\createdb.exe" -U postgres app_db
+
+# 2. создать файл .env в корне проекта
+#    DATABASE_URL=postgresql://postgres:ВАШ_ПАРОЛЬ@127.0.0.1:5432/app_db
+#    AUTH_SECRET=любая_длинная_случайная_строка
+
+# 3. зависимости + таблицы
 npm install
-Copy-Item .env.example .env
-```
-
-Откройте `.env` и укажите данные своей базы:
-
-```env
-DATABASE_URL=postgresql://postgres:ВАШ_ПАРОЛЬ@127.0.0.1:5432/app_db
-SESSION_SECRET=любая-длинная-случайная-строка
-```
-
-Создайте базу `app_db`, если её ещё нет, затем выполните:
-
-```powershell
 npx drizzle-kit push
-npm run dev
+
+# 4. сборка и старт
+npm run build
+npm start
 ```
 
-Откройте в браузере:
+Откройте <http://localhost:3000>. При первом обращении база автоматически создаётся
+и наполняется демо-данными (13 рынков, история цен, ордера, сделки, баланс 550 000 ₽).
 
-```text
-http://localhost:3000
-```
+Остановить сервер — `Ctrl + C`. Занят порт 3000 — `npm start -- -p 3001`.
 
-Для production-режима:
+### Открыть с телефона в той же Wi-Fi сети
 
 ```powershell
-npm run build
-npm run start
+npm start -- -H 0.0.0.0 -p 3000
+ipconfig                          # узнать IPv4, например 192.168.1.50
+netsh advfirewall firewall add rule name="RUBEX" dir=in action=allow protocol=TCP localport=3000
 ```
+
+На iPhone откройте `http://192.168.1.50:3000`.
 
 ---
 
-## Установка на iPhone
+## 4. iPhone / iPad / Android — установка иконки
 
-После деплоя на Vercel:
+1. Откройте адрес приложения в **Safari** (на Android — Chrome).
+2. Войдите в аккаунт.
+3. iPhone: кнопка **«Поделиться» → «На экран “Домой”»**.
+   Android: меню ⋮ → **«Установить приложение»**.
+4. Иконка RUBEX появится на экране, запуск — в полноэкранном режиме без адресной строки.
 
-1. Откройте постоянный адрес проекта в Safari.
-2. Нажмите кнопку **Поделиться**.
-3. Выберите **На экран «Домой»**.
-4. Нажмите **Добавить**.
+Это PWA: манифест и иконки лежат в `public/`.
 
-Приложение откроется отдельным окном с иконкой «БИРЖА».
+### Windows — установить как приложение
 
-## Установка на Windows как приложение
-
-В Chrome:
-
-1. Откройте адрес Vercel.
-2. Нажмите значок установки справа в адресной строке или откройте `⋮ → Сохранить и поделиться → Установить страницу как приложение`.
-3. Подтвердите установку.
-
-В Microsoft Edge:
-
-1. Откройте адрес Vercel.
-2. Откройте `⋯ → Приложения → Установить этот сайт как приложение`.
-3. При необходимости включите ярлык на рабочем столе.
+Chrome: меню ⋮ → *Сохранить и поделиться → Установить страницу как приложение*.
+Edge: меню ⋯ → *Приложения → Установить этот сайт как приложение*.
 
 ---
 
-## Проверка перед публикацией
+## 5. Хостинг в интернете (общий доступ с телефона и ПК)
+
+### Рекомендуемый путь: Vercel + Neon (бесплатно)
+
+1. **GitHub:** загрузите проект в репозиторий:
+   ```bash
+   git init && git add . && git commit -m "rubex exchange"
+   git remote add origin git@github.com:ВАШ_ЛОГИН/rubex.git
+   git push -u origin main
+   ```
+2. **Neon (база данных):** neon.tech → бесплатный проект → база `app_db` → скопируйте
+   строку подключения (кнопка **Pooled**).
+3. **Vercel:** vercel.com → Add New → Project → выберите `rubex` (Next.js определится сам) →
+   в Environment Variables добавьте:
+   ```
+   DATABASE_URL=<строка из шага 2>
+   AUTH_SECRET=<длинная случайная строка, от 16 символов>
+   ```
+   Нажмите Deploy.
+4. Получите постоянную ссылку `https://rubex.vercel.app`. Таблицы и демо-данные
+   (баланс 550 000 ₽) создаются автоматически при первом запросе — миграции вручную не нужны.
+5. На iPhone: открыть в Safari → «Поделиться» → «На экран “Домой”».
+
+Альтернативы: Railway (база и приложение в одном месте), VPS с `docker compose up -d --build`
+и собственным доменом.
+
+---
+
+## 6. Полезные команды
 
 ```bash
-npx next typegen
-npm exec tsc -- --noEmit --pretty false
-npm run build
-```
+# вернуть 550 000 ₽ на рублёвый спот-счёт
+psql "$DATABASE_URL" -c "update balances set available='550000', locked='0' where symbol='RUB';"
 
-Проверка базы и API:
+# бэкап и восстановление
+pg_dump app_db > rubex-backup.sql
+psql app_db < rubex-backup.sql
 
-```bash
+# проверка состояния
 curl http://localhost:3000/api/health
 ```
 
-Ожидаемый ответ:
-
-```json
-{"ok":true}
-```
-
 ---
 
-## Важная безопасность
+## 7. Структура
 
-- Не коммитьте `.env`, `.env.local` и строку `DATABASE_URL` в GitHub.
-- Используйте длинный уникальный `SESSION_SECRET`.
-- Это личный демонстрационный терминал, а не настоящая биржа: цены симулируются в интерфейсе, реальные деньги и блокчейн-транзакции не подключены.
-- Если приложение нужно закрыть только для себя, не публикуйте ссылку и используйте сложный пароль аккаунта.
+```
+src/app/(app)/          защищённые страницы (дашборд, рынки, торговля, кошелёк, ордера, операции, настройки)
+src/app/api/            REST-роуты: auth, markets, orders, transactions, wallet, watchlist, user, health
+src/lib/bootstrap.ts    авто-создание таблиц + демо-данные
+src/lib/market.ts       движок котировок (случайное блуждание) и матчинг ордеров
+src/lib/exchange.ts     ордера, сделки, кошелёк, портфель, депозиты/выводы
+src/db/schema.ts        схема Drizzle: users, assets, balances, orders, trades, transactions, watchlist, price_history
+```
+
+Комиссия сделок — 0.10%. Пароли хранятся как scrypt-хэши, сессия — подписанная httpOnly cookie.
