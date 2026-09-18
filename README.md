@@ -26,6 +26,10 @@
 docker compose up -d --build
 ```
 
+> **Слабый ноутбук (8 ГБ RAM, 2 ядра) — пропусти этот раздел.** Docker Desktop поднимает
+> WSL2-виртуалку и забирает 1,5–2 ГБ памяти: на 6 ГБ доступной RAM это означает постоянный
+> своп и «тормозит весь ноутбук». Иди сразу в раздел 3 и ставь PostgreSQL службой.
+
 Готово — PostgreSQL (порт 5432) и приложение (порт 3000) поднимутся сами, таблицы и демо-данные
 (баланс 550 000 ₽) создадутся автоматически.
 
@@ -78,6 +82,40 @@ netsh advfirewall firewall add rule name="RUBEX" dir=in action=allow protocol=TC
 ```
 
 На iPhone откройте `http://192.168.1.50:3000`.
+
+---
+
+### 3.1. Если ноутбук слабый (≤8 ГБ RAM / 2 ядра) — экономим память
+
+Проверь, сколько реально доступно: `Win+R` → `msinfo32` → «Всего физической памяти» против
+«Доступно физической памяти». На ноутбуках с встроенной графикой Radeon/Vega 2 ГБ из 8 отъедается
+под iGPU — остаётся ~6 ГБ, и их легко съесть одному браузеру.
+
+**Не запускай Docker Desktop «просто для базы».** Нативный PostgreSQL-сервис Windows в простое
+занимает порядка 50–100 МБ, WSL2-виртуалка — гигабайты.
+
+```powershell
+# один раз: ставишь PostgreSQL 16 (установщик EDB, только «Server»), затем:
+& "C:\Program Files\PostgreSQL\16\bin\psql.exe" -U postgres -c "create database app_db;"
+
+# каждый запуск: лимит heap'а Node, чтобы dev-сервер не упёрся в своп
+$env:NODE_OPTIONS = '--max-old-space-size=1536'
+$env:NEXT_TELEMETRY_DISABLED = '1'
+npm run dev
+```
+
+Ещё три вещи, которые на такой машине дают заметный эффект:
+
+1. **Исключение папки проекта в Defender** (запустить от админа) — иначе антивирус сканирует
+   каждый файл внутри `node_modules` при установке и сборке:
+   ```powershell
+   Add-MpPreference -ExclusionPath "C:\путь\к\rubex"
+   ```
+2. **Отключить автозапуск Docker Desktop / WSL**, если ими не пользуешься каждый день.
+3. **Не держать `npm run build` и `npm run dev` одновременно** — на 4 потоках они делят CPU
+   и оба падают в 2–3 раза.
+
+Диагностика и безопасная чистка — раздел 8.
 
 ---
 
@@ -154,3 +192,34 @@ src/db/schema.ts        схема Drizzle: users, assets, balances, orders, tra
 ```
 
 Комиссия сделок — 0.10%. Пароли хранятся как scrypt-хэши, сессия — подписанная httpOnly cookie.
+
+
+---
+
+## 8. Диагностика и безопасная чистка ноутбука (Windows)
+
+В репозитории лежат два PowerShell-скрипта. Оба **только читают** и ничего сами не удаляют:
+
+```powershell
+# 1) снимок системы: RAM/планки/слоты, CPU, диски, автозапуск, Docker/WSL, сеть, ошибки
+powershell -ExecutionPolicy Bypass -File .\tools\diag-windows.ps1
+#    подробно (обход папок профиля, 2-10 мин): ... diag-windows.ps1 -Deep
+#    результат: rubex-diag-<дата>.txt
+
+# 2) что можно освободить (СУХОЙ ПРОГОН, удалять не будет)
+powershell -ExecutionPolicy Bypass -File .\tools\cleanup-windows.ps1
+#    реально почистить кэши: ... cleanup-windows.ps1 -Apply
+#    плюс кэши сборки проектов: ... cleanup-windows.ps1 -Apply -PmCache -NodeModules C:\путь\к\rubex
+#    системное (только из PowerShell от админа): ... cleanup-windows.ps1 -Apply -DeepSystem
+#    результат: rubex-cleanup.txt
+```
+
+Типичные находки на 8-гигабайтных ноутбуках, которые дают реальный прирост:
+
+| Что | Чем лечится |
+|---|---|
+| Свободно < 1 ГБ RAM, commit близок к лимиту | автозапуск, вкладки браузера, Docker/WSL; второй SODIMM на 8 ГБ |
+| `pagefile` трещит, диск 73% занят | `-Apply` (Temp, кэши npm/pnpm/pip, браузеры, WER), `powercfg /h off` |
+| `.vhdx` Docker Desktop на 20–40 ГБ | `docker system prune`, затем `diskpart → compact vdisk` (файл сам не сжимается) |
+| Сборка/установка медленная | исключение папки проекта в Defender, `npm ci` вместо `npm install` |
+| Ноутбук греется и сбрасывает частоты | BIOS/микрокод от 2021 года → обновить у HP, продуть вентилятор |

@@ -125,6 +125,63 @@ Try2 'DOCKER / WSL — ТУТ ОБЫЧНО И ЖИВЁТ ЛИШНИЕ ГБ' {
   }
 }
 
+Try2 'RAM: ПЛАНКИ / СЛОТЫ / ЗАРЕЗЕРВИРОВАНО ВЕГАСОЙ' {
+  '--- распознано ОС ---'
+  $cs = Get-CimInstance Win32_ComputerSystem
+  "Win32_ComputerSystem.TotalPhysicalMemory : {0:N2} ГБ" -f ($cs.TotalPhysicalMemory / 1GB)
+  $osx = Get-CimInstance Win32_OperatingSystem
+  "Win32_OperatingSystem.TotalVisibleMemory : {0:N2} ГБ" -f ($osx.TotalVisibleMemorySize / 1MB)
+  "Свободно сейчас                          : {0:N2} ГБ" -f ($osx.FreePhysicalMemory / 1MB)
+  $c = [math]::Round(($cs.TotalPhysicalMemory - $osx.TotalVisibleMemorySize * 1KB) / 1GB, 2)
+  "Зарезервировано (iGPU/ACPI/Reserved)      : {0:N2} ГБ" -f $c
+  '--- физические модули ---'
+  Get-CimInstance Win32_PhysicalMemory | ForEach-Object {
+    [pscustomobject]@{
+      Slot     = $_.DeviceLocator
+      GB       = [math]::Round($_.Capacity / 1GB)
+      Speed    = $_.Speed
+      ConfMBps = $_.ConfiguredClockSpeed
+      Vendor   = $_.Manufacturer
+      Serial   = $_.SerialNumber
+    }
+  } | Format-Table -AutoSize | Out-String
+  '--- сколько слотов всего ---'
+  Get-CimInstance Win32_PhysicalMemoryArray | ForEach-Object {
+    [pscustomobject]@{ Max_GB = [math]::Round($_.MaxCapacity / 1MB); Slots = $_.MemoryDevices; Used = ($_.TotalPhysicalMemory/1GB) }
+  } | Format-Table -AutoSize | Out-String
+  '--- сведения о видеоядре (Unified Addressing) ---'
+  Get-CimInstance Win32_VideoController | Select-Object Name, DriverVersion, DriverDate,
+    @{n='RAM_MB';e={[math]::Round($_.TotalMemory / 1MB)}} | Format-Table -AutoSize | Out-String
+  '--- Hyper-V / WSL2 активны? ---'
+  "HypervisorPresent: $($cs.HypervisorPresent)"
+  "VirtualizationFirmwareEnabled: $((Get-CimInstance Win32_ComputerSystem).HyperVRequirementVirtualizationFirmwareEnabled)"
+}
+
+Try2 'СЕТЬ / VPN / DNS' {
+  '--- адаптеры ---'
+  Get-NetAdapter | Select-Object Name, Status, LinkSpeed, MacAddress, DriverVersion | Format-Table -AutoSize | Out-String
+  '--- DNS ---'
+  Get-DnsClientServerAddress -AddressFamily IPv4 | Where-Object { $_.ServerAddresses } |
+    Select-Object InterfaceAlias, @{n='DNS';e={ ($_.ServerAddresses -join ', ') }} | Format-Table -AutoSize | Out-String
+  '--- VPN-туннели (Wintun: ест CPU на каждом соединении) ---'
+  $t = Get-VpnConnection -EA SilentlyContinue
+  if ($t) { $t | Select-Object Name, ServerAddress, ConnectionStatus | Format-Table -AutoSize | Out-String } else { 'нет' }
+  '--- MTU активного адаптера ---'
+  Get-NetIPInterface -AddressFamily IPv4 -ConnectionState Connected -EA SilentlyContinue |
+    Select-Object InterfaceAlias, NlMtu, AutomaticMetric, RouteMetric | Format-Table -AutoSize | Out-String
+}
+
+Try2 'DEFENDER: НАВИГАЦИЯ ПО node_modules' {
+  $pr = Get-MpPreference -EA SilentlyContinue
+  if ($pr) {
+    "RealTimeProtection: $($pr.DisableRealtimeMonitoring -notcontains $true)"
+    "ExclusionPath     : $($pr.ExclusionPath -join '; ')"
+    "ExclusionExtension: $($pr.ExclusionExtension -join '; ')"
+    "ExclusionProcess  : $($pr.ExclusionProcess -join '; ')"
+    "Threats за 14 дней: $((Get-MpThreatDetection -EA SilentlyContinue | Measure-Object).Count)"
+  } else { 'Get-MpPreference недоступен без админа' }
+}
+
 Try2 'МЕСТО В ХОТЕ: КУСКИ' {
   $paths = @(
     "$env:TEMP", "$env:LOCALAPPDATA\Temp", "$env:LOCALAPPDATA\Microsoft\Windows\INetCache",

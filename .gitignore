@@ -8,3 +8,4 @@ out/
 
 # отчёт диагностики ноутбука (tools/diag-windows.ps1) — не коммитим
 rubex-diag-*.txt
+rubex-cleanup.txt
