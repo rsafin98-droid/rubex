@@ -5,3 +5,6 @@ out/
 .env
 *.log
 .DS_Store
+
+# отчёт диагностики ноутбука (tools/diag-windows.ps1) — не коммитим
+rubex-diag-*.txt
